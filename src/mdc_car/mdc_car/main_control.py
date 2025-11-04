@@ -6,204 +6,137 @@ from geometry_msgs.msg import Twist
 from .include.maestro import Maestro
 from typing import Iterator
 
-# Maestro configuration
+# Config
 _MAESTRO_PATH = "/dev/ttyACM0"
 _MAESTRO_BAUD = 9600
 _CHANNEL_STEER = 1
 _CHANNEL_DRIVE = 0
-
-# Servo PWM values (in microseconds)
-_NEUTRAL_DRIVE_VALUE = 6000
-_BACKWARD_DRIVE_MIN = 5640
-_FORWARD_DRIVE_MIN = 6200
-_NEUTRAL_STEER_VALUE = 5800
-
-# Steering Trim: Adjust this value to correct physical misalignment.
-# Positive value corrects a pull to the left.
-# Negative value corrects a pull to the right.
-_STEERING_TRIM = 50  # Start with a value like 50 and adjust as needed.
-_STEER_LEFT = 4200 
+_NEUTRAL_DRIVE = 6000
+_BACK_MIN = 5640
+_FWD_MIN = 6200
+_NEUTRAL_STEER = 5800
+_TRIM = 50
+_STEER_LEFT = 4200
 _STEER_RIGHT = 7600
-_STEER_LEFT_RANGE = _NEUTRAL_STEER_VALUE - _STEER_LEFT  # 1600
-_STEER_RIGHT_RANGE = _STEER_RIGHT - _NEUTRAL_STEER_VALUE  # 1800
-
-# Physical constants
-_WHEELBASE_LENGTH = 0.3556  # Wheelbase in meters
-
-_DEFAULT_LIMIT = 0.25
+_LEFT_RANGE = _NEUTRAL_STEER - _STEER_LEFT
+_RIGHT_RANGE = _STEER_RIGHT - _NEUTRAL_STEER
+_WHEELBASE = 0.3556
+_LIMIT = 0.25
+_ACCEL = 0
 TOPIC = '/cmd_vel'
-# Get user input with validation
-while True:
-    try:
-        speed_str = input("Enter top speed (m/s): ")
-        if not speed_str:
-            print("No speed entered, using default of " + str(_DEFAULT_LIMIT))
-            LIMIT = _DEFAULT_LIMIT
-            break
-        LIMIT = float(speed_str)
-        if LIMIT <= 0:
-            print("Speed must be positive.")
-            continue
-        break
-    except ValueError:
-        print("Please enter a valid number.")
 
-while True:
-    try:
-        ACCEL = int(input("Enter acceleration (PWM units, 0-255): "))
-        if ACCEL < 0 or ACCEL > 255:  # Typical Maestro speed range
-            print("Acceleration must be between 0 and 255.")
-            continue
-        break
-    except ValueError:
-        print("Using default value of 0")
-        ACCEL = 0
-        break
+# Linear fits
+_M_FWD = 0.002306997333
+_B_FWD = -0.4474072417
+_TOP_FWD = int((_LIMIT - _B_FWD) / _M_FWD + _NEUTRAL_DRIVE)
+_M_REV = 0.001061176966
+_B_REV = -0.3531598483
+_TOP_REV = int(_NEUTRAL_DRIVE - (_LIMIT - _B_REV) / _M_REV)
 
-# Linear equations:
-# Speed (m/s) = M * abs(drive - _NEUTRAL_DRIVE_VALUE) + B
-_M_FORWARD = 0.002306997333  # Slope for forward motion
-_B_FORWARD = -0.4474072417   # Intercept for forward motion
-_TOP_FORWARD_DRIVE = int((LIMIT - _B_FORWARD) / _M_FORWARD + _NEUTRAL_DRIVE_VALUE)
-
-_M_BACKWARD = 0.001061176966  # Slope for backward motion
-_B_BACKWARD = -0.3531598483   # Intercept for backward motion
-_TOP_BACKWARD_DRIVE = int(_NEUTRAL_DRIVE_VALUE - (LIMIT - _B_BACKWARD) / _M_BACKWARD)
-
-# Avg Angle = M * abs(steer - _NEUTRAL_STEER_VALUE) + B
-_M_RIGHT =  0.01269313305
-_B_RIGHT = -0.3433476395
-
-_M_LEFT = 0.0169201995
-_B_LEFT = -4.554862843
+_M_R = 0.01269313305
+_B_R = -0.3433476395
+_M_L = 0.0169201995
+_B_L = -4.554862843
 
 class MainControl(Node):
     def __init__(self, mdev):
         super().__init__('main_control')
         self.mdev = mdev
-        self.subscription = self.create_subscription(
-            Twist,
-            TOPIC,
-            self.listener_callback,
-            10)  # Queue size of 10
+        self.sub = self.create_subscription(Twist, TOPIC, self.cb, 10)
 
-    def listener_callback(self, msg):
-        # Calculate drive value based on linear.x (forward/backward velocity)
+    def cb(self, msg):
+        # Drive
         if msg.linear.x > 0:
-            drive_range = _TOP_FORWARD_DRIVE - _FORWARD_DRIVE_MIN
-            drive = int(msg.linear.x * drive_range + _FORWARD_DRIVE_MIN)
+            drive = int(msg.linear.x * (_TOP_FWD - _FWD_MIN) + _FWD_MIN)
         elif msg.linear.x < 0:
-            drive_range = _BACKWARD_DRIVE_MIN - _TOP_BACKWARD_DRIVE
-            drive = int(msg.linear.x * drive_range + _BACKWARD_DRIVE_MIN)
+            drive = int(msg.linear.x * (_BACK_MIN - _TOP_REV) + _BACK_MIN)
         else:
-            drive = _NEUTRAL_DRIVE_VALUE
+            drive = _NEUTRAL_DRIVE
+        drive = max(_TOP_REV, min(_TOP_FWD, drive))
+        drive_off = abs(drive - _NEUTRAL_DRIVE)
 
-        drive = max(_TOP_BACKWARD_DRIVE, min(_TOP_FORWARD_DRIVE, drive))  # Clamp drive value
-        drive_offset = abs(drive - _NEUTRAL_DRIVE_VALUE)
-        # Calculate steer value based on angular.z (Positive angular.z is a turn to the LEFT, Negative is RIGHT)
-        if msg.angular.z > 0: # Turn LEFT (Counter-Clockwise)
-            steer_range = _STEER_LEFT_RANGE
-        elif msg.angular.z < 0: # Turn RIGHT (Clockwise)
-            steer_range = _STEER_LEFT_RANGE
-        else:
-            steer_range = 0
-        steer = int(_NEUTRAL_STEER_VALUE - msg.angular.z * steer_range + _STEERING_TRIM)
-        steer = max(_STEER_LEFT, min(_STEER_RIGHT, steer))  # Clamp steer value
-        steer_offset = abs(steer - _NEUTRAL_STEER_VALUE)
-        # Calculate steering angle in degrees
-        if steer < _NEUTRAL_STEER_VALUE:
-            steer_angle = -(_M_LEFT * steer_offset + _B_LEFT)
-        elif steer > _NEUTRAL_STEER_VALUE:
-            steer_angle = _M_RIGHT * steer_offset + _B_RIGHT
-        else:
-            steer_angle = 0.0
+        # Steer
+        steer_range = _LEFT_RANGE if msg.angular.z else 0
+        steer = int(_NEUTRAL_STEER - msg.angular.z * steer_range + _TRIM)
+        steer = max(_STEER_LEFT, min(_STEER_RIGHT, steer))
+        steer_off = abs(steer - _NEUTRAL_STEER)
 
-        # Calculate speed in m/s
-        if drive >= _FORWARD_DRIVE_MIN:  # Forward
-            speed = _M_FORWARD * drive_offset + _B_FORWARD
-        elif drive <= _BACKWARD_DRIVE_MIN:  # Reverse
-            speed = _M_BACKWARD * drive_offset + _B_BACKWARD
-        else:  # Deadband
+        # Angle
+        if steer < _NEUTRAL_STEER:
+            angle = -(_M_L * steer_off + _B_L)
+        elif steer > _NEUTRAL_STEER:
+            angle = _M_R * steer_off + _B_R
+        else:
+            angle = 0.0
+
+        # Speed
+        if drive >= _FWD_MIN:
+            speed = _M_FWD * drive_off + _B_FWD
+        elif drive <= _BACK_MIN:
+            speed = _M_REV * drive_off + _B_REV
+        else:
             speed = 0.0
 
-        radius = calculate_turning_radius(speed, steer_angle)
+        radius = calc_radius(speed, angle)
 
-        # Send commands to Maestro
         try:
             self.mdev.set_target(_CHANNEL_DRIVE, drive)
             self.mdev.set_target(_CHANNEL_STEER, steer)
-            self.get_logger().info(
-                f'[Drive: {drive} | Speed: {speed:.2f} m/s | Steer: {steer_angle:.2f}° | Radius: {radius:.2f} m]'
-            )
+            self.get_logger().info(f'D:{drive} S:{speed:.2f}m/s A:{angle:.1f}° R:{radius:.1f}m')
         except Exception as e:
-            self.get_logger().error(f"Failed to set Maestro targets: {e}")
+            self.get_logger().error(f'Err: {e}')
 
 @contextlib.contextmanager
-def make_maestro(*args, **kwargs) -> Iterator[Maestro]:
+def maestro() -> Iterator[Maestro]:
+    m = Maestro(_MAESTRO_PATH, _MAESTRO_BAUD)
     try:
-        m = Maestro(*args, **kwargs)
         yield m
-    except Exception as e:
-        print(f"Failed to initialize Maestro: {e}")
-        raise
     finally:
         m.close()
 
-def main(args=None):
-    rclpy.init(args=args)
-    with contextlib.ExitStack() as es:
-        mdev = es.enter_context(make_maestro(_MAESTRO_PATH, _MAESTRO_BAUD))
-        
-        # Initialize steering
-        mdev.set_target(_CHANNEL_STEER, _NEUTRAL_STEER_VALUE)
-        mdev.set_speed(_CHANNEL_STEER, 0)  # No speed limit
-        mdev.set_acceleration(_CHANNEL_STEER, 0)  # Instant movement
+def calc_radius(speed, deg, mu=1.0):
+    if abs(deg) < 0.01 or speed == 0:
+        return float('inf')
+    rad = math.radians(deg)
+    static = abs(_WHEELBASE / math.tan(rad))
+    lat = speed**2 / static
+    if lat > mu*9.81:
+        return speed**2 / (mu*9.81)
+    return static
 
-        # Initialize drive
-        mdev.set_target(_CHANNEL_DRIVE, _NEUTRAL_DRIVE_VALUE)
-        mdev.set_speed(_CHANNEL_DRIVE, ACCEL)  # User-defined acceleration
-        mdev.set_acceleration(_CHANNEL_DRIVE, 0)  # Instant start
-
-        main_control = MainControl(mdev)
+def main():
+    rclpy.init()
+    # Config (defaults)
+    _LIMIT = 0.25
+    _ACCEL = 0
+    
+    # Interactive input with defaults
+    speed_str = input(f"Top speed (m/s) [{_LIMIT}]: ") or str(_LIMIT)
+    try: _LIMIT = float(speed_str); assert _LIMIT > 0
+    except: print("Invalid, using default"); _LIMIT = 0.25
+    
+    accel_str = input(f"Acceleration (0-255) [{_ACCEL}]: ") or str(_ACCEL)
+    try: _ACCEL = int(accel_str); assert 0 <= _ACCEL <= 255
+    except: print("Invalid, using default"); _ACCEL = 0
+    
+    # Recalculate limits
+    _TOP_FWD = int((_LIMIT - _B_FWD) / _M_FWD + _NEUTRAL_DRIVE)
+    _TOP_REV = int(_NEUTRAL_DRIVE - (_LIMIT - _B_REV) / _M_REV)
+    
+    with maestro() as m:
+        m.set_target(_CHANNEL_STEER, _NEUTRAL_STEER)
+        m.set_speed(_CHANNEL_STEER, 0)
+        m.set_acceleration(_CHANNEL_STEER, 0)
+        m.set_target(_CHANNEL_DRIVE, _NEUTRAL_DRIVE)
+        m.set_speed(_CHANNEL_DRIVE, _ACCEL)
+        m.set_acceleration(_CHANNEL_DRIVE, 0)
+        node = MainControl(m)
         try:
-            rclpy.spin(main_control)
+            rclpy.spin(node)
         except KeyboardInterrupt:
-            print("Shutting down gracefully...")
-
-        main_control.destroy_node()
+            pass
+        node.destroy_node()
     rclpy.shutdown()
-
-def calculate_turning_radius(speed, avg_angle_deg, mu=1.0):
-    """
-    Calculate the turning radius of an RC car, considering speed dynamically.
-    
-    Parameters:
-    - speed (float): Speed in m/s.
-    - avg_angle_deg (float): Average steering angle in degrees.
-    - mu (float): Friction coefficient (default 1.0).
-    
-    Returns:
-    - float: Turning radius in meters, or infinity for straight line.
-    """
-    angle_rad = avg_angle_deg * math.pi / 180
-    
-    if abs(avg_angle_deg) < 0.01 or speed == 0.0:
-        return float('inf')  # Straight line
-    
-    # Static turning radius
-    static_radius = _WHEELBASE_LENGTH / math.tan(max(min(angle_rad, math.pi/2 - 0.01), -math.pi/2 + 0.01))
-    static_radius = abs(static_radius)
-    
-    # Required lateral acceleration
-    lateral_acc = (speed ** 2) / static_radius
-    
-    # Maximum grip (g = 9.81 m/s^2)
-    max_acc = mu * 9.81
-    
-    # Adjust radius if exceeding grip
-    if lateral_acc > max_acc:
-        return (speed ** 2) / max_acc
-    return static_radius
 
 if __name__ == '__main__':
     main()

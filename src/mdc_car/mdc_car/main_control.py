@@ -21,7 +21,7 @@ _STEER_RIGHT = 7600
 _LEFT_RANGE = _NEUTRAL_STEER - _STEER_LEFT
 _RIGHT_RANGE = _STEER_RIGHT - _NEUTRAL_STEER
 _WHEELBASE = 0.3556
-_LIMIT = 0.25
+_LIMIT = 0.35
 _ACCEL = 0
 TOPIC = '/cmd_vel'
 
@@ -115,11 +115,8 @@ def calc_radius(speed, deg, mu=1.0):
     return static
 
 def main():
-    global _TOP_FWD, _TOP_REV, _ACCEL
+    global _TOP_FWD, _TOP_REV, _ACCEL, _LIMIT
     rclpy.init()
-    # Config (defaults)
-    _LIMIT = 0.25
-    _ACCEL = 0
     
     # Interactive input with defaults
     speed_str = input(f"Top speed (m/s) [{_LIMIT}]: ") or str(_LIMIT)

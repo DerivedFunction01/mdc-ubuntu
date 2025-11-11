@@ -78,10 +78,10 @@ class MainControl(Node):
             speed = 0.0
 
         radius = calc_radius(speed, angle)
-
+        
         try:
             self.mdev.set_target(_CHANNEL_DRIVE, drive)
-            self.mdev.set_target(_CHANNEL_STEER, steer)
+            self.mdev.set_target(_CHANNEL_STEER, steer) # steer is in degrees
             self.get_logger().info(f'D:{drive} S:{speed:.2f}m/s A:{angle:.1f}° R:{radius:.1f}m')
         except Exception as e:
             self.get_logger().error(f'Err: {e}')
@@ -95,6 +95,16 @@ def maestro() -> Iterator[Maestro]:
         m.close()
 
 def calc_radius(speed, deg, mu=1.0):
+    """Calculates the radius of a wheel based on speed and angle.
+
+    Args:
+        speed (float): The speed of the vehicle in meters per second.
+        deg (float): The steering angle of the vehicle in degrees.
+        mu (float, optional): The coefficient of friction between the tires and the ground. Defaults to 1.0.
+
+    Returns:
+        float: The radius of a wheel based on speed and angle.
+    """
     if abs(deg) < 0.01 or speed == 0:
         return float('inf')
     rad = math.radians(deg)
@@ -105,6 +115,7 @@ def calc_radius(speed, deg, mu=1.0):
     return static
 
 def main():
+    global _TOP_FWD, _TOP_REV, _ACCEL
     rclpy.init()
     # Config (defaults)
     _LIMIT = 0.25

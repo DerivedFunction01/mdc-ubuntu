@@ -1,0 +1,40 @@
+# depthimage_to_laserscan Configuration for Azure Kinect ROS Driver
+# 
+# This config converts the Kinect depth image to a 2D laser scan for use with Nav2/AMCL.
+# Reference: https://wiki.ros.org/depthimage_to_laserscan
+#
+# Key tuning parameters:
+# - scan_height: Select which row of the depth image to convert to a 1D scan.
+#                For a typical mounting, choose a height that hits obstacles (e.g., walls, chair legs).
+#                The Kinect publishes 1024x1024 or 1088x1088 depth (NFOV_UNBINNED).
+#                Try scan_height=512 for middle, or adjust based on your mount angle.
+# - range_min/max: Filter out near and far measurements.
+#                  Kinect min reliable depth ~0.3-0.5m (reflective surfaces cause noise).
+#                  range_max ~8.0m is safe; can extend to 10m but noisier.
+
+depthimage_to_laserscan_node:
+  ros__parameters:
+    # Topic names (must match Azure Kinect ROS Driver publishing namespace)
+    depth_image_topic: "depth/image_raw"
+    camera_info_topic: "depth/camera_info"
+    output_frame: "camera_base"      # Matches nav2 robot_base_frame in nav2_params.yaml
+    scan_topic: "/scan"
+
+    # Range filtering
+    range_min: 0.35                  # Minimum range (m). Kinect noisy below 0.3m.
+    range_max: 8.0                   # Maximum range (m). Adjust down if too noisy at distance.
+
+    # Scan height selection (in pixels from top of depth image)
+    # Azure Kinect NFOV_UNBINNED: 1024 x 1024
+    # Try middle row (~512) or adjust based on camera mount height.
+    scan_height: 512                 # Row index from top. Tune for your mounting angle.
+
+    # Angular range (typically full FOV ~±45° for Kinect depth)
+    min_angle: -3.14159
+    max_angle: 3.14159
+
+    # Downsampling (to reduce CPU load and noise)
+    output_window_step: 4            # Skip every Nth column. 1=no skip, 4=75% reduction.
+
+    # Advanced (may not be supported in all depthimage_to_laserscan forks)
+    use_inf: false

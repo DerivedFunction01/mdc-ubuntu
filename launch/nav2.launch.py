@@ -8,7 +8,7 @@ from launch_ros.actions import Node
 nav2_ros_pkg_dir = get_package_share_directory("nav2_bringup")
 
 # Default nav2 params YAML inside this package's config folder
-default_nav2_params = os.path.join(os.getcwd(), "config", "nav2_params.yaml")
+default_nav2_params = os.path.join(os.getcwd(), "config", "nav2_params_2d_scan.yaml")
 
 # nodes that lifecycle manager will manage
 lifecycle_nodes = [

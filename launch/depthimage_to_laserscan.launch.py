@@ -37,7 +37,26 @@ def generate_launch_description():
             ("/scan", "/scan"),
         ],
     )
+    # Add this alongside your depthimage_to_laserscan node
+    depth_throttle_node = Node(
+        package="topic_tools",
+        executable="throttle",
+        arguments=[
+            "sensor_msgs/Image",  # Message type
+            "/depth/image_raw",  # Input topic
+            "--rate",
+            "10",  # Output at 10 Hz instead of 30+
+        ],
+        remappings=[
+            (
+                "/depth/image_raw_throttled",
+                "/depth/image_raw",
+            ),  # Remap throttled output back
+        ],
+        output="screen",
+    )
 
+    ld.add_action(depth_throttle_node)
     ld.add_action(depth_to_scan_node)
 
     return ld

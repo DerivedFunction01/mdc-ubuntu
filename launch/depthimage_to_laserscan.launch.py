@@ -60,8 +60,16 @@ def generate_launch_description():
         parameters=[params],
         remappings=[
             # remap the typical internal topic names to your actual topics
+            # depth image variations (cover common internal names used by different forks)
             ('depth/image', LaunchConfiguration('depth_image_topic')),
+            ('depth', LaunchConfiguration('depth_image_topic')),
+            ('image', LaunchConfiguration('depth_image_topic')),
+            ('image_raw', LaunchConfiguration('depth_image_topic')),
+            # camera info variations
             ('camera_info', LaunchConfiguration('camera_info_topic')),
+            ('depth/camera_info', LaunchConfiguration('camera_info_topic')),
+            ('rgb/camera_info', LaunchConfiguration('camera_info_topic')),
+            # output scan topic
             ('scan', LaunchConfiguration('scan_topic')),
         ],
     )

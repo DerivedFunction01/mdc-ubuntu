@@ -23,6 +23,8 @@ def generate_launch_description():
                 "range_max": 8.0,  # Maximum valid range in meters (further than this is ignored)
                 "scan_height": 240,  # Which row of the depth image to extract (0=top, increase for lower rows)
                 "output_window_step": 8,  # Downsample horizontal pixels (higher = fewer points, less CPU)
+                "output_frame_rate": 5.0,
+                "output_frame": "camera_base"
             }
         ],
         # Topic remappings - CRITICAL: these must match the node's internal topic names
@@ -37,26 +39,25 @@ def generate_launch_description():
             ("/scan", "/scan"),
         ],
     )
-    # Add this alongside your depthimage_to_laserscan node
-    depth_throttle_node = Node(
+
+    ld.add_action(depth_to_scan_node)
+    # Throttle the SCAN topic instead of depth
+    scan_throttle_node = Node(
         package="topic_tools",
         executable="throttle",
+        name="throttle_scan",
+        output="screen",
         arguments=[
-            "sensor_msgs/Image",  # Message type
-            "/depth/image_raw",  # Input topic
-            "--rate",
-            "10",  # Output at 10 Hz instead of 30+
+            "messages",      # throttle mode
+            "/scan",         # input
+            "10",            # output at 10 Hz
+            "/scan_throttled",
         ],
         remappings=[
-            (
-                "/depth/image_raw_throttled",
-                "/depth/image_raw",
-            ),  # Remap throttled output back
+            # Map throttled scan back to the standard name
+            ("/scan_throttled", "/scan"),
         ],
-        output="screen",
     )
-
-    ld.add_action(depth_throttle_node)
-    ld.add_action(depth_to_scan_node)
+    ld.add_action(scan_throttle_node)
 
     return ld

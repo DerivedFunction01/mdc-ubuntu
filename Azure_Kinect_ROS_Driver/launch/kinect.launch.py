@@ -37,7 +37,7 @@ def generate_launch_description():
     )
     ld.add_action(
         DeclareLaunchArgument(
-            "FPS", default_value="15", description="FPS set to 5, (default) 15, or 30"
+            "FPS", default_value="5", description="FPS set to 5, (default) 15, or 30"
         )
     )
 
@@ -68,13 +68,13 @@ def generate_launch_description():
                 {
                     "depth_enabled": True,
                     "depth_mode": "NFOV_UNBINNED",
-                    "color_enabled": True,
+                    "color_enabled": False,
                     "color_resolution": "720P",
                     "fps": LaunchConfiguration("FPS"),
                     "point_cloud": False,
                     "rgb_point_cloud": False,
                     "point_cloud_in_depth_frame": False,
-                    "synchronized_images_only": True,
+                    "synchronized_images_only": False,
                     "imu_rate_target": 100,
                     "use_sim_time": LaunchConfiguration("use_sim_time"),
                 }

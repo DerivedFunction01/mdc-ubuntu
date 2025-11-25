@@ -1,0 +1,6 @@
+image: p2_map.pgm    # change path if needed
+resolution: 0.05         # meters / pixel (change if your map uses a different resolution)
+origin: [0.0, 0.0, 0.0]  # map origin [x, y, yaw] in meters and radians
+negate: 0                # 0 = white is free, 1 = swap interpretation
+occupied_thresh: 0.65    # above this value is occupied
+free_thresh: 0.196       # below this is free

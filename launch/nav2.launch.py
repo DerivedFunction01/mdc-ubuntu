@@ -2,23 +2,26 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration, Command
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-
-nav2_ros_pkg_dir = get_package_share_directory("nav2_bringup")
 
 # Default nav2 params YAML inside this package's config folder
 default_nav2_params = os.path.join(os.getcwd(), "config", "nav2_params_2d_scan.yaml")
 
-# nodes that lifecycle manager will manage
+# --- LIFECYCLE NODE MANAGEMENT ---
+# The order here matters!
+# 1. map_server (must load map first)
+# 2. amcl (needs map to localize)
+# 3. servers (planner/controller need to know where robot is)
 lifecycle_nodes = [
+    "map_server",
+    "amcl",
     "controller_server",
     "smoother_server",
     "planner_server",
     "behavior_server",
     "bt_navigator",
     "waypoint_follower",
-    # 'velocity_smoother'
 ]
 
 # --- Configured params substitution for Nav2 nodes ---
@@ -57,7 +60,7 @@ def generate_launch_description():
             "log_level", default_value="info", description="log level"
         )
     )
-    # Nav2 params file argument (points to azure_kinect/config/nav2_params.yaml by default)
+
     ld.add_action(
         DeclareLaunchArgument(
             "params_file",
@@ -66,28 +69,45 @@ def generate_launch_description():
         )
     )
 
-    # --- Nav2 nodes (use params_file from azure_kinect/config by default) ---
+    # --- Nav2 nodes ---
     nav_nodes = [
+        # Map Server (Loads the static map)
+        {
+            "package": "nav2_map_server",
+            "executable": "map_server",
+            "name": "map_server",
+        },
+        # AMCL (Localization)
+        {
+            "package": "nav2_amcl",
+            "executable": "amcl",
+            "name": "amcl",
+        },
+        # Controller (Follows the path)
         {
             "package": "nav2_controller",
             "executable": "controller_server",
             "name": "controller_server",
         },
+        # Smoother (Optional, smooths path)
         {
             "package": "nav2_smoother",
             "executable": "smoother_server",
             "name": "smoother_server",
         },
+        # Planner (Calculates the path)
         {
             "package": "nav2_planner",
             "executable": "planner_server",
             "name": "planner_server",
         },
+        # Behaviors (Recovery actions like backing up/spinning)
         {
             "package": "nav2_behaviors",
             "executable": "behavior_server",
             "name": "behavior_server",
         },
+        # BT Navigator (Orchestrates the navigation logic)
         {
             "package": "nav2_bt_navigator",
             "executable": "bt_navigator",
@@ -98,7 +118,6 @@ def generate_launch_description():
             "executable": "waypoint_follower",
             "name": "waypoint_follower",
         },
-        # add velocity_smoother here if you want later
     ]
 
     for nd in nav_nodes:
@@ -116,7 +135,8 @@ def generate_launch_description():
                     "--log-level",
                     LaunchConfiguration("log_level"),
                 ],
-                remappings=[("input_node", "cmd_vel")],
+                # If you need to remap cmd_vel to something else (e.g. /robot/cmd_vel), do it here
+                remappings=[("cmd_vel", "cmd_vel")],
             )
         )
 

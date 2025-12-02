@@ -37,15 +37,19 @@ def generate_launch_description():
     )
     ld.add_action(
         DeclareLaunchArgument(
-            "FPS", default_value="5", description="FPS set to 5, (default) 15, or 30"
+            "FPS",
+            default_value="15",  # CHANGED: Increased from 5 to 15 for better Odometry tracking
+            description="FPS set to 5, (default) 15, or 30",
         )
     )
 
     # --- Robot State Publisher ---
+    # Publishes the TF tree (base_link -> camera_base -> sensors)
     ld.add_action(
         Node(
             package="robot_state_publisher",
             executable="robot_state_publisher",
+            name="robot_state_publisher",  # Added name for clarity
             output="screen",
             parameters=[
                 {
@@ -68,13 +72,13 @@ def generate_launch_description():
                 {
                     "depth_enabled": True,
                     "depth_mode": "NFOV_UNBINNED",
-                    "color_enabled": False,
+                    "color_enabled": True,  # CHANGED: Must be True for Visual Odometry!
                     "color_resolution": "720P",
                     "fps": LaunchConfiguration("FPS"),
-                    "point_cloud": False,
+                    "point_cloud": False,  # Keep False (saves CPU, we use depthimage_to_laserscan)
                     "rgb_point_cloud": False,
                     "point_cloud_in_depth_frame": False,
-                    "synchronized_images_only": False,
+                    "synchronized_images_only": True,  # CHANGED: Ensure RGB and Depth match for Odom
                     "imu_rate_target": 100,
                     "use_sim_time": LaunchConfiguration("use_sim_time"),
                 }

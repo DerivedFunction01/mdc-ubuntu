@@ -70,7 +70,7 @@ rtabmap_parameters = {
 
     # Database
     "database_path": default_db_path,
-    "Mem/IncrementalMemory": "true", # "true" = SLAM (Mapping), "false" = Localization only
+    "Mem/IncrementalMemory": "false", # "true" = SLAM (Mapping), "false" = Localization only
 }
 
 # --- Remapping Kinect topics to RTAB-Map ---
@@ -117,7 +117,7 @@ def generate_launch_description():
             'color_resolution': '720P',
             # INCREASED FPS: 5 is too slow for Odometry to hold lock. 
             # We increased this to 15, but throttled "Rtabmap/DetectionRate" to 1 above.
-            'fps': 15, 
+            'fps': 5, 
             'point_cloud': False,
             'rgb_point_cloud': False,
             'point_cloud_in_depth_frame': False,

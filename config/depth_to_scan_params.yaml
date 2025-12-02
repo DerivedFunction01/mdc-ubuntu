@@ -38,3 +38,4 @@ depthimage_to_laserscan_node:
 
     # Advanced (may not be supported in all depthimage_to_laserscan forks)
     use_inf: false
+# ros2 run tf2_ros static_transform_publisher --x 0 --y 0 --z 0 --yaw 0 --pitch 0 --roll 0 --frame-id odom --child-frame-id camera_base

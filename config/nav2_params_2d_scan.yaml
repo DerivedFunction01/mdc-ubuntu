@@ -1,60 +1,6 @@
-# Nav2 Parameters for 2D LaserScan-based Localization
-# Replaces RGB-D (RTAB-Map) with lightweight AMCL + /scan from depthimage_to_laserscan
-# 
-# Key differences from nav2_params.yaml:
-# - Uses /scan (LaserScan) topic for localization via AMCL
-# - Uses /scan for obstacle detection in costmaps (lighter than pointcloud)
-# - Includes AMCL configuration for 2D Monte Carlo localization
-map_server:
-  ros__parameters:
-    use_sim_time: true
-    # UPDATE THIS PATH: It must be the absolute path to the map.yaml you uploaded
-    yaml_filename: "map.yaml"
-amcl:
-  ros__parameters:
-    use_sim_time: true                       # Use simulation time if true
-    alpha1: 0.2                              # Expected error in rotation from rotation (rad)
-    alpha2: 0.2                              # Expected error in rotation from translation (rad)
-    alpha3: 0.2                              # Expected error in translation from rotation (m)
-    alpha4: 0.2                              # Expected error in translation from translation (m)
-    alpha5: 0.2                              # Expected error in translation from strafe (m)
-    base_frame_id: "camera_base"             # Robot's base frame
-    beam_skip_distance: 0.5                  # Distance to skip beam readings (m)
-    beam_skip_error_threshold: 0.9           # Threshold for beam skip error
-    beam_skip_threshold: 0.3                 # Threshold for beam skip
-    do_beamskip: false                       # Whether to skip certain beams
-    global_frame_id: "map"                   # Global reference frame
-    lambda_short: 0.1                        # Likelihood for short measurements
-    laser_likelihood_max_dist: 2.0           # Max distance for laser correspondence (m)
-    laser_max_range: 8.0                     # Max laser range (must match /scan max range)
-    laser_min_range: 0.35                    # Min laser range (must match /scan min range)
-    laser_model_type: "likelihood_field"     # Laser model: "likelihood_field" or "beam"
-    max_beams: 60                            # Max beams to use from scan (reduce to save CPU)
-    max_particles: 2000                      # Maximum particles in filter
-    min_particles: 500                       # Minimum particles in filter
-    odom_frame_id: "odom"                    # Odometry frame
-    odom_model_type: "differential"          # Odometry model: "diff", "omni", "stationary"
-    pf_z_hit: 0.5                            # Likelihood of good measurements
-    pf_z_max: 0.05                           # Likelihood of max-range measurements
-    pf_z_rand: 0.5                           # Likelihood of random measurements
-    pf_z_short: 0.05                         # Likelihood of short measurements
-    recovery_alpha_fast: 0.0                 # Exponential decay rate for fast recovery
-    recovery_alpha_slow: 0.99                # Exponential decay rate for slow recovery
-    resample_interval: 1                     # Resample interval (every N updates)
-    save_pose_rate: 0.5                      # Rate to save pose (Hz)
-    sigma_hit: 0.2                           # Standard deviation for hit measurement noise (m)
-    tf_broadcast: true                       # Whether to broadcast map->odom transform
-    transform_tolerance: 0.5                 # Timeout for transforms (s)
-    update_min_a: 0.2                        # Min rotation before AMCL update (rad)
-    update_min_d: 0.25                       # Min translation before AMCL update (m)
-    z_hit: 0.95                              # Weight of hits in laser model
-    z_max: 0.01                              # Weight of max-range measurements
-    z_rand: 0.05                             # Weight of random measurements
-    z_short: 0.05                            # Weight of short measurements
-
 bt_navigator:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false                       # CHANGED: False for real hardware
     global_frame: map
     robot_base_frame: camera_base
     odom_topic: /odom
@@ -112,15 +58,15 @@ bt_navigator:
 
 bt_navigator_navigate_through_poses_rclcpp_node:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false
 
 bt_navigator_navigate_to_pose_rclcpp_node:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false
 
 controller_server:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false
     controller_frequency: 20.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
@@ -184,11 +130,11 @@ controller_server:
 local_costmap:
   local_costmap:
     ros__parameters:
-      update_frequency: 5.0                 # Increased from 3.0 since /scan is light
+      update_frequency: 5.0                 # CHANGED: Increased slightly because 2D scans are fast
       publish_frequency: 2.0
       global_frame: odom
       robot_base_frame: camera_base
-      use_sim_time: true
+      use_sim_time: false                   # CHANGED: False
       rolling_window: true
       width: 10
       height: 10
@@ -197,51 +143,7 @@ local_costmap:
       track_unknown_space: false
       plugins: ["obstacle_layer", "inflation_layer"]
 
-      # Obstacle layer using LaserScan (much lighter than pointcloud)
-      obstacle_layer:
-        plugin: "nav2_costmap_2d::ObstacleLayer"
-        observation_sources: scan           # Use /scan instead of pointcloud
-        scan:
-          topic: /scan                      # LaserScan topic from depthimage_to_laserscan
-          sensor_frame: camera_base         # Frame of the laser scan
-          data_type: LaserScan              # Data type: LaserScan (not PointCloud2)
-          clearing: true
-          marking: true
-          raytrace_max_range: 8.0           # Max range for raycasting
-          raytrace_min_range: 0.35          # Min range for raycasting
-          max_obstacle_height: 0.5
-          min_obstacle_height: 0.05
-
-      inflation_layer:
-        plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 0.55
-
-global_costmap:
-  global_costmap:
-    ros__parameters:
-      width: 9
-      height: 43
-      resolution: 0.05
-      update_frequency: 1.0
-      publish_frequency: 1.0
-      global_frame: map
-      robot_base_frame: camera_base
-      use_sim_time: true
-      robot_radius: 0.22
-      track_unknown_space: true
-      plugins: ["static_layer", "inflation_layer", "obstacle_layer"]
-
-      static_layer:
-        plugin: "nav2_costmap_2d::StaticLayer"
-        map_subscribe_transient_local: true
-        topic: /map                        # Occupancy grid map (from Nav2 map_server)
-
-      inflation_layer:
-        plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.55
-
-      # Obstacle layer using LaserScan for dynamic obstacles
+      # CHANGED: Switched from PointCloud2 to LaserScan for efficiency
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         observation_sources: scan
@@ -251,10 +153,54 @@ global_costmap:
           data_type: LaserScan
           clearing: true
           marking: true
-          raytrace_max_range: 8.0
-          raytrace_min_range: 0.35
-          max_obstacle_height: 0.5
+          max_obstacle_height: 2.0
           min_obstacle_height: 0.05
+          raytrace_max_range: 3.0
+          obstacle_max_range: 2.5
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        inflation_radius: 0.55
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      width: 50                             # Dynamic, but needs initial size
+      height: 50
+      resolution: 0.05
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: camera_base
+      use_sim_time: false                   # CHANGED: False
+      robot_radius: 0.22
+      track_unknown_space: true
+      plugins: ["static_layer", "inflation_layer", "obstacle_layer"]
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+        topic: /map
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55
+
+      # CHANGED: Switched from PointCloud2 to LaserScan for dynamic obstacles
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        observation_sources: scan
+        scan:
+          topic: /scan
+          sensor_frame: camera_base
+          data_type: LaserScan
+          clearing: true
+          marking: true
+          max_obstacle_height: 2.0
+          min_obstacle_height: 0.05
+          raytrace_max_range: 3.0
+          obstacle_max_range: 2.5
 
       always_send_full_costmap: true
 
@@ -277,7 +223,7 @@ behavior_server:
     global_frame: odom
     robot_base_frame: camera_base
     transform_tolerance: 0.5
-    use_sim_time: true
+    use_sim_time: false                     # CHANGED: False
     simulate_ahead_time: 2.0
     max_rotational_vel: 1.0
     min_rotational_vel: 0.4
@@ -285,11 +231,11 @@ behavior_server:
 
 robot_state_publisher:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false                     # CHANGED: False
 
 waypoint_follower:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false                     # CHANGED: False
     loop_rate: 20
     stop_on_failure: false
     waypoint_task_executor_plugin: "wait_at_waypoint"
@@ -300,7 +246,7 @@ waypoint_follower:
 
 velocity_smoother:
   ros__parameters:
-    use_sim_time: true
+    use_sim_time: false                     # CHANGED: False
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
